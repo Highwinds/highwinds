@@ -1,4 +1,3 @@
-from StringIO import StringIO
 import os
 from tempfile import mkstemp
 import unittest
@@ -7,6 +6,10 @@ import sys
 from requests import Response
 from striketracker import Command, APIError
 
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 
 class TestStrikeTrackerCommand(unittest.TestCase):
 
@@ -18,6 +21,7 @@ class TestStrikeTrackerCommand(unittest.TestCase):
         sys.stderr = StringIO()
         self._stdin = sys.stdin
         sys.stdin = StringIO()
+
 
     def tearDown(self):
         os.close(self.fd)
@@ -40,14 +44,12 @@ class TestStrikeTrackerCommand(unittest.TestCase):
             'Unknown command: nuke\n',
             sys.stderr.getvalue())
 
-    @patch('getpass.getpass')
-    @patch('__builtin__.raw_input')
+    @patch('striketracker.get_input', return_value='bob')
+    @patch('getpass.getpass', return_value='password1')
     @patch('striketracker.APIClient.create_token')
-    def test_init(self, create_token, raw_input, getpw):
+    def test_init(self, create_token, getpw, mock_input):
         sys.argv = ['striketracker', 'init']
         create_token.return_value = 'rikkitikkitavi'
-        raw_input.return_value = 'bob'
-        getpw.return_value = 'password1'
         command = Command(cache=self.cache)
         self.assertTrue(create_token.called)
         create_token.assert_called_with(username='bob', password='password1', application=None)
@@ -237,7 +239,8 @@ updatedDate: '2016-04-12 11:22:18'
         sys.argv = ['striketracker', 'purge', '--token', 'foobarwinniethefoobar']
         with self.assertRaises(SystemExit) as e:
             command = Command()
-        self.assertIn('too few arguments', sys.stderr.getvalue())
+            std_error = sys.stderr.getvalue()
+            self.assertIn('too few arguments', std_error)
 
     def test_purge_no_token(self):
         sys.argv = ['striketracker', 'purge', 'x1x2x3x4']
@@ -290,7 +293,7 @@ updatedDate: '2016-04-12 11:22:18'
     @patch('striketracker.APIClient.purge')
     def test_purge_options(self, purge):
         sys.stdin.write('//cdn.foo.com/main.js\n//cdn.foo.com/main.css')
-        os.write(self.fd, 'token: foobar')
+        os.write(self.fd, 'token: foobar'.encode('utf-8'))
         for option in ['--purge-all-dynamic', '--recursive', '--invalidate-only']:
             sys.argv = ['striketracker', 'purge', 'x1x2x3x4', option]
             sys.stdin.seek(0)
@@ -313,7 +316,7 @@ updatedDate: '2016-04-12 11:22:18'
     @patch('striketracker.APIClient.purge_status')
     def test_purge_status(self, purge_status):
         sys.argv = ['striketracker', 'purge_status', 'x1x2x3x4', 'cmu34ctmy3408xmy']
-        os.write(self.fd, 'token: foobar')
+        os.write(self.fd, 'token: foobar'.encode('utf-8'))
         purge_status.return_value = 0.75
         command = Command(cache=self.cache)
         purge_status.assert_called_with('x1x2x3x4', 'cmu34ctmy3408xmy')
