@@ -9,15 +9,18 @@ import yaml
 from yaml import SafeDumper
 import logging
 
+# Python 2 Compatibility
+from builtins import input
 
 
 class ConfigurationCache():
     def __init__(self, filename=None):
         self.cache = None
         self.filename = filename if filename is not None else os.path.join(expanduser('~'), '.highwinds')
+        os.open(self.filename, os.O_RDONLY | os.O_CREAT, 0o0600)
 
     def read(self):
-        with os.fdopen(os.open(self.filename, os.O_RDONLY | os.O_CREAT, 0600), 'r') as f:
+        with open(self.filename, 'r') as f:
             self.cache = yaml.load(f)
             if self.cache is None:
                 self.cache = {}
@@ -27,14 +30,13 @@ class ConfigurationCache():
         if self.cache is None:
             self.read()
         self.cache[key] = value
-        with os.fdopen(os.open(self.filename, os.O_WRONLY | os.O_CREAT, 0600), 'w') as f:
+        with open(self.filename, 'w') as f:
             return yaml.dump(self.cache, f, Dumper=SafeDumper, default_flow_style=False)
 
     def get(self, key, default=None):
         if self.cache is None:
             self.read()
         return self.cache.get(key, default)
-
 
 
 class APIError(Exception):
@@ -85,7 +87,7 @@ class APIClient:
     def create_scope(self, account, host, scope):
         response = requests.post(
             self.base_url + '/api/v1/accounts/{account}/hosts/{host}/configuration/scopes'
-                .format(account=account, host=host),
+            .format(account=account, host=host),
             headers={
                 'Authorization': 'Bearer %s' % self.token,
                 'Content-Type': 'application/json'
@@ -99,7 +101,7 @@ class APIClient:
     def update_configuration(self, account, host, scope, configuration):
         response = requests.put(
             self.base_url + '/api/v1/accounts/{account}/hosts/{host}/configuration/{scope}'
-                .format(account=account, host=host, scope=scope),
+            .format(account=account, host=host, scope=scope),
             headers={
                 'Authorization': 'Bearer %s' % self.token,
                 'Content-Type': 'application/json'
@@ -113,7 +115,7 @@ class APIClient:
     def get_configuration(self, account, host, scope):
         response = requests.get(
             self.base_url + '/api/v1/accounts/{account}/hosts/{host}/configuration/{scope}'
-                .format(account=account, host=host, scope=scope),
+            .format(account=account, host=host, scope=scope),
             headers={
                 'Authorization': 'Bearer %s' % self.token,
                 'Content-Type': 'application/json'
@@ -139,7 +141,8 @@ class APIClient:
         access_token = auth['access_token']
 
         # Grab user's id and root account hash
-        user_response = requests.get(self.base_url + '/api/v1/users/me', headers={'Authorization': 'Bearer %s' % access_token})
+        user_response = requests.get(self.base_url + '/api/v1/users/me',
+                                     headers={'Authorization': 'Bearer %s' % access_token})
         user = user_response.json()
         if 'accountHash' not in user or 'id' not in user:
             raise APIError('Could not fetch user\'s root account hash', user_response)
@@ -172,13 +175,13 @@ class APIClient:
         return purge_response.json()['id']
 
     def purge_status(self, account_hash, job_id):
-        status_response = requests.get(self.base_url + ('/api/v1/accounts/%s/purge/%s' % (account_hash, job_id,)), headers={
-            'Authorization': 'Bearer %s' % self.token,
-            })
+        status_response = requests.get(self.base_url + ('/api/v1/accounts/%s/purge/%s' % (account_hash, job_id,)),
+                                       headers={
+                                           'Authorization': 'Bearer %s' % self.token,
+                                       })
         if 'progress' not in status_response.json():
             raise APIError('Could not fetch purge status', status_response)
         return float(status_response.json()['progress'])
-
 
 
 def command(arguments=()):
@@ -215,7 +218,9 @@ def command(arguments=()):
 
             # Call original function
             fn(self, *args, **kwargs)
+
         return wrapper
+
     return apply_args
 
 
@@ -227,7 +232,12 @@ def authenticated(fn):
                 "supply the --token parameter on the command line.\n")
             exit(1)
         fn(self, *args, **kwargs)
+
     return wrapper
+
+
+def get_input(text):
+    return input(text)
 
 
 class Command:
@@ -258,7 +268,7 @@ class Command:
         yaml.dump(obj, sys.stdout, Dumper=SafeDumper, default_flow_style=False)
 
     def _error(self, e):
-        sys.stderr.write(e.message + "\n")
+        sys.stderr.write(e.args[0] + "\n")
         try:
             sys.stderr.write(e.context.json()['error'] + "\n")
         except:
@@ -273,8 +283,10 @@ class Command:
         if self.args.token:
             token = self.args.token
         else:
+            username = get_input('Username: ')
+            assert isinstance(username, str)
             token = self.client.create_token(
-                username=raw_input('Username: '),
+                username=username,
                 password=getpass.getpass(),
                 application=self.args.application if hasattr(self.args, 'application') else None
             )
@@ -295,14 +307,14 @@ class Command:
     @command([
         {'name': 'account', 'help': 'Account from which to purge assets'},
         {'name': '--poll', 'help': 'Poll for purge status to be complete instead of returning id',
-            'action': 'store_true'},
+         'action': 'store_true'},
         {'name': '--invalidate-only', 'help': 'Force revalidation on assets instead of removing them',
-            'action': 'store_true'},
+         'action': 'store_true'},
         {'name': '--purge-all-dynamic', 'help': 'Purge all dynamic version of asset',
-            'action': 'store_true'},
+         'action': 'store_true'},
         {'name': '--recursive', 'help': 'Purge all assets at this path recursively',
-            'action': 'store_true'},
-        ])
+         'action': 'store_true'},
+    ])
     @authenticated
     def purge(self):
         sys.stderr.write('Reading urls from stdin\n')
@@ -331,7 +343,7 @@ class Command:
                 time.sleep(0.1)
             sys.stderr.write('Done!\n')
         else:
-            sys.stdout.write(job_id)
+            sys.stdout.write(str(job_id))
             sys.stdout.write("\n")
 
     @command([
@@ -340,13 +352,13 @@ class Command:
     ])
     @authenticated
     def purge_status(self):
-        sys.stdout.write(self.client.purge_status(self.args.account, self.args.job_id))
+        sys.stdout.write(str(self.client.purge_status(self.args.account, self.args.job_id)))
         sys.stdout.write("\n")
 
     @command([
         {'name': 'account', 'help': 'Account from which to purge assets'},
         {'name': 'host', 'help': 'Hash of host to clone'},
-        ])
+    ])
     @authenticated
     def get_host(self):
         try:
@@ -398,7 +410,8 @@ class Command:
                 def strip_ids(typeInstance):
                     if 'id' in typeInstance:
                         del typeInstance['id']
-                for typeName, confType in old_configuration.iteritems():
+
+                for typeName, confType in old_configuration.items():
                     if type(confType) is list:
                         for index in range(len(confType)):
                             strip_ids(confType[index])
