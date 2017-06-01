@@ -216,7 +216,7 @@ class TestStrikeTrackerAPIClient(unittest.TestCase):
         })
         with self.assertRaises(APIError) as e:
             self.client.create_token('bob', 'password1')
-        self.assertEqual('Could not fetch access token', e.exception.message)
+        self.assertEqual('Could not fetch access token', e.exception.args[0])
 
     @responses.activate
     def test_create_token_fails_me(self):
@@ -228,7 +228,7 @@ class TestStrikeTrackerAPIClient(unittest.TestCase):
         })
         with self.assertRaises(APIError) as e:
             self.client.create_token('bob', 'password1')
-        self.assertEqual('Could not fetch user\'s root account hash', e.exception.message)
+        self.assertEqual('Could not fetch user\'s root account hash', e.exception.args[0])
 
     @responses.activate
     def test_create_token_fails_token(self):
@@ -243,7 +243,7 @@ class TestStrikeTrackerAPIClient(unittest.TestCase):
                       status=500, json={"error": "Could not write token to database"})
         with self.assertRaises(APIError) as e:
             self.client.create_token('bob', 'password1')
-        self.assertEqual('Could not generate API token', e.exception.message)
+        self.assertEqual('Could not generate API token', e.exception.args[0])
 
     @responses.activate
     def test_purge(self):

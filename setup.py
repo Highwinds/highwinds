@@ -8,11 +8,8 @@ setup(name='striketracker',
       author_email='support@highwinds.com',
       license='MIT',
       packages=['striketracker'],
-      install_requires=[
-          'requests>=2.0.1',
-          'PyYAML>=3.10'
-      ],
+      install_requires=['requests>=2.0.1', 'PyYAML>=3.10', 'future'],
       scripts=['bin/striketracker'],
       test_suite='nose.collector',
-      tests_require=['nose', 'responses', 'coverage'],
+      tests_require=['nose', 'responses', 'coverage', 'future', 'mock'],
       zip_safe=False)
